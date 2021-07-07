@@ -1,0 +1,119 @@
+#include <Wire.h>
+const int MPU = 0x68; // MPU6050 I2C address
+float AccX, AccY, AccZ;
+float elapsedTime, currentTime, previousTime;
+int c = 0;
+float sum = 0;
+float startingpoint_x;
+float startingpoint_y;
+float startingpoint_z;
+
+
+#define T_C 1047
+#define T_CD 1109
+#define T_D 1175
+#define T_DE 1245
+#define T_E 1319
+#define T_F 1397
+#define T_FG 1480 
+#define T_G 1568
+#define T_GA 1661
+#define T_A 1760
+#define T_B 1976
+
+const int C = 10;
+const int CD = 12;
+const int D = 9;
+const int DE = 13;
+const int E = 8;
+const int F = 7;
+const int FG = 3;
+const int G = 6;
+const int GA = 2;
+const int A = 5;
+const int B = 4;
+const int Buzz = 11;
+float lastTime = millis();
+
+void setup() {
+  Serial.begin(19200);
+  Wire.begin();                      // Initialize comunication
+  Wire.beginTransmission(MPU);       // Start communication with MPU6050 // MPU=0x68
+  Wire.write(0x6B);                  // Talk to the register 6B
+  Wire.write(0x00);                  // Make reset - place a 0 into the 6B register
+  Wire.endTransmission(true);        //end the transmission
+
+  // Configure Accelerometer Sensitivity - Full Scale Range (default +/- 2g)
+  Wire.beginTransmission(MPU);
+  Wire.write(0x1C);                  //Talk to the ACCEL_CONFIG register (1C hex)
+  Wire.write(0x10);                  //Set the register bits as 00010000 (+/- 8g full scale range)
+  Wire.endTransmission(true);
+
+  delay(20);
+  
+}
+
+void loop() {
+  Wire.beginTransmission(MPU);
+  Wire.write(0x3B); // Start with register 0x3B (ACCEL_XOUT_H)
+  Wire.endTransmission(false);
+  Wire.requestFrom(MPU, 6, true); // Read 6 registers total, each axis value is stored in 2 registers
+  //For a range of +-2g, we need to divide the raw values by 16384, according to the datasheet
+  AccX = (Wire.read() << 8 | Wire.read()) / 16384.0; // X-axis value
+  AccY = (Wire.read() << 8 | Wire.read()) / 16384.0; // Y-axis value
+  AccZ = (Wire.read() << 8 | Wire.read()) / 16384.0; // Z-axis value
+  
+  // Set Starting Point
+  startingpoint();
+  
+  // Calculate distance
+  calculate_distance();
+
+  //Playing the piano
+  piano();
+}
+
+void calculate_distance() {
+
+  // MEASUREMENTS
+   float x = AccX;  
+   float y = AccY;
+   float z = AccZ;
+
+   float newx = startingpoint_x - x;
+   float newy = startingpoint_y - y;
+   float newz = startingpoint_z - z;
+  
+
+  // MATH
+   float a = sqrt(newx*newx + newy*newy + newz*newz); // add as a vector
+   currentTime = millis();
+   
+   sum = 0.5 * a * (currentTime - lastTime) * (currentTime - lastTime) / 1e6;  // 1e6 is correction to convert millis to seconds
+   lastTime = currentTime;  // remember time for next round
+
+  // DISPLAY
+   Serial.println(sum, 4); // 4 decimals 
+}
+
+void startingpoint(){
+
+  float startingpoint_x;
+  float startingpoint_y;
+  float startingpoint_z;
+
+  // SET STARTING POINT AT LEFT EDGE OF FIRST PIANO KEY
+   startingpoint_x = AccX;
+   startingpoint_y = AccY;
+   startingpoint_z = AccZ;
+}
+
+void piano(){
+  if ((0 < sum < 0.02) || (0.161 < sum < 0.181) || (0.322 < sum < 0.342) || (0.483 < sum < 0.503) || (0.644 < sum < 0.664)) tone(Buzz,T_C); //  C key
+  if ((0.023 < sum < 0.043) || (0.184 < sum < 0.204) || (0.345 < sum < 0.365) || (0.506 < sum < 0.526)) tone(Buzz,T_D); // D key
+  if ((0.046 < sum < 0.066) || (0.207 < sum < 0.227) || (0.368 < sum < 0.388) || (0.529 < sum < 0.549)) tone(Buzz,T_E); // E Key 
+  if ((0.069 < sum < 0.089) || (0.230 < sum < 0.250) || (0.391 < sum < 0.411) || (0.552 < sum < 0.572)) tone(Buzz,T_F); // F Key
+  if ((0.092 < sum < 0.112) || (0.253 < sum < 0.273) || (0.414 < sum < 0.434) || (0.575 < sum < 0.595)) tone(Buzz,T_G); // G Key
+  if ((0.115 < sum < 0.135) || (0.276 < sum < 0.296) || (0.437 < sum < 0.457) || (0.598 < sum < 0.618)) tone(Buzz,T_A); // A Key
+  if ((0.138 < sum < 0.158) || (0.299 < sum < 0.319) || (0.460 < sum < 0.480) || (0.621 < sum < 0.641)) tone(Buzz,T_B); // B Key
+}
